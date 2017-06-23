@@ -1,0 +1,43 @@
+--- Session signing and validation
+-- @module turbospoon.session
+local {SignerVerificationError} = require("turbospoon.errors");
+local {to_base64, from_base64} = require("basexx");
+local digest = require("openssl.digest");
+local hmac = require("openssl.hmac");
+
+_ENV = setmetatable({}, {__index = _G});
+
+--- Class used for signing and validating strings using an immutable key
+-- @param [string] signing_key Key used for HMAC signing hashes
+-- @param [table] opts
+-- [string] separator Char used to separate text from signed hash (default "!")
+-- [string] digest_method Method used for hashing (default "sha1")
+class Signer {
+	__init(signing_key, opts={})=> {
+		@signing_key   = assert(signing_key);
+		-- @salt          = (|| opts.salt ""); -- ::TODO:: eventually?
+		@separator     = (|| opts.salt "!");
+		@digest_method = (|| opts.digest_method "sha1");
+	}
+
+	--- Hash a value using @digest_method, then use HMAC with @signing_key
+	-- @param [string] text Text to hash and sign
+	sign(text)=> {
+		local hasher = digest.new(@digest_method);
+		local signer = hmac.new(@signing_key, @digest_method);
+		return ("%s%s%s"):format(text, @separator,
+				to_base64(signer:final(hasher:final(text))));
+	}
+
+	--- Verify a signed hash is reproducible from a given text
+	-- @param [string] signed_text Value used for verification
+	verify(signed_text)=> {
+		local pos = signed_text:find(@separator, nil, true);
+		local text = signed_text:sub(1, (- pos 1));
+		assert((== @sign(text) signed_text), SignerVerificationError(
+					signed_text, text, @digest_method));
+		return text;
+	}
+}
+
+return _ENV;

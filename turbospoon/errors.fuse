@@ -1,0 +1,24 @@
+--- Module for all Turbospoon errors
+-- @module turbospoon.errors
+local {BaseError} = require("stdlib.error");
+
+_ENV = setmetatable({}, {__index = _G});
+
+--- Thrown if a hashed string does not match a pre-hashed string
+-- @param [string] signed_text Text to use for checking validation
+-- @param [string] text Text that, when hashed, failed validation
+-- @param [string]? digest_method Method used for hashing
+class SignerVerificationError implements BaseError {
+	__init(signed_text, text, digest_method)=>
+		@signed_text, @text, @digest_method = signed_text, text, digest_method;
+	__tostring()=> {
+		if @digest_method
+			return ("%q hashed via %s does not match %q"):format(
+					@text, @digest_method, @signed_text);
+		else
+			return ("%q hashed does not match %q"):format(
+					@text, @signed_text);
+	}
+}
+
+return _ENV;

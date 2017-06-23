@@ -1,0 +1,161 @@
+--- turbospoon - A FusionScript web application framework
+-- @module turbospoon
+local {File} = require("stdlib.io");
+local {assert} = require("stdlib.error");
+
+local socket = require("cqueues.socket");
+local headers = require("http.headers");
+local server = require("http.server");
+local context = require("openssl.ssl.context");
+local pkey = require("openssl.pkey");
+local x509 = require("openssl.x509");
+
+local {Signer} = require("turbospoon.session");
+local {SignerVerificationError} = require("turbospoon.errors");
+
+_ENV = setmetatable({}, {__index = _G});
+
+--- Provide an interface to transfer data to and from a client.
+-- @param [http.stream] stream Data stream from lua-http, to be wrapped
+class Request {
+	__init(stream, headers)=> {
+		@stream = stream;
+		@headers = {};
+		for (k, v in headers:each())
+			@headers[k] = v;
+		@method = @headers[":path"];
+	}
+}
+
+--- Create a Turbospoon application.
+class App {
+	__init()=> {
+		-- Mechanism for signing data
+		File("/dev/random"):with(\file-> {
+			@secret_key = file:read(24);
+		});
+		@signer = Signer(@secret_key);
+
+		-- Configuration and data storage
+		@config = {};
+		@handlers = setmetatable({}, {__index = App.handlers});
+
+		-- Routing information
+		@routes = {};
+		@errorhandlers = {};
+	}
+
+	--- Call a handler for a key and set an appropriate config value.
+	-- @param [string] key
+	-- @param [*] value
+	set(key, value)=> {
+		if @handlers[key]
+			@handlers[key](self, value);
+		@config[key] = value;
+	}
+
+	--- Register a callback to handle configuration changes.
+	-- @param [string] key
+	-- @param [function] callback
+	register_handler(key, callback)=> {
+		@handlers[key] = callback;
+	}
+
+	--- Map server to an address and port.
+	-- @param [string] host Hostname for server to listen on. Set this to;
+	-- '0.0.0.0' or '::' to listen on all available interfaces or '127.0.0.1'
+	-- to only listen locally.
+	-- @param [number] port Port for server to listen on. Most systems require
+	-- this value to be over 1024. Use an iptables redirect if you want to use
+	-- port 443 or 80.
+	bind(host, port)=> {
+		@server = server.new({
+			socket = socket.listen(host, port),
+			onerror = \server, context, operation, errnum, errstr-> {
+				@handle_error(context, oepration, errnum, errstr);
+			},
+			onstream = \server, stream-> {
+				@process(stream);
+			},
+			tls = @config.tls,
+			ctx = @tls_ctx,
+			max_concurrent = 200
+		});
+	}
+
+	--- Do something?
+	handle_error(server, context, operation, errstr, errno)=> {
+		print("Error: ", server, context, operation, errstr);
+		server:shutdown();
+	}
+
+	--- Subscribe a callback to all requests matching a path.
+	-- Routes will be "first-come, first-serve", routes registered earlier
+	-- will have priority over routes that register later.
+	-- @param [regex] path Compiled LPeg regex for matching paths
+	-- @param [function] handler Function for processing request
+	route(path, handler)=>
+		table.insert(@routes, {path=path, handler=handler});
+
+	--- Find the correct page handler for a URL and process the request.
+	-- @param [cqueues.socket] stream Incoming connection to handle
+	-- @private
+	process(stream)=> {
+		local request_headers = assert(stream:get_headers());
+		local path = request_headers:get(":path");
+		for (_, route in ipairs(@routes)) {
+			if path:match(route.path) {
+				local results = {route.handler(Request(
+						stream, request_headers), path:match(route.path))};
+				if (! results[2]) results[2] = '200';
+				else results[2] = tostring(results[2]);
+				local response_headers = headers.new();
+				if results[3]
+					for (k, v in pairs(results[3]))
+						response_headers:upsert(k, v);
+				response_headers:upsert(":status", results[2]);
+				if (== request_headers:get(":method") "HEAD") {
+					stream:write_headers(response_headers, true);
+					return;
+				}
+				stream:write_headers(response_headers, false);
+				if results[1]
+					stream:write_chunk(results[1], true);
+				else stream:write_chunk("", true);
+				return;
+			}
+		}
+	}
+
+	--- Start listening to incoming requests
+	run()=> {
+		print(@server:loop());
+	}
+
+	handlers = {};
+}
+
+--- Load a certificate from a file, making a new TLS context if needed.
+App:register_handler("certfile", \certfile=> {
+	File(certfile):with(\file-> {
+		if (!@tls_ctx)
+			@tls_ctx = context.new("TLS", true);
+		@tls_ctx:setCertificate(x509.new(file:read("a"), "PEM"));
+		-- please for the love of God, don't use anything other than PEM, I'm
+		-- not smart enough to implement anything else yet ::TODO::
+		@config.tls = true;
+	});
+});
+
+--- Load a private key from a file, making a new TLS context if needed.
+App:register_handler("keyfile", \keyfile=> {
+	File(keyfile):with(\file-> {
+		if (!@tls_ctx)
+			@tls_ctx = context.new("TLS", true);
+		@tls_ctx:setPrivateKey(pkey.new(file:read("*a"), "PEM"));
+		-- read above TODO as for doing custom file types
+		@config.tls = true;
+	});
+});
+
+return _ENV;
