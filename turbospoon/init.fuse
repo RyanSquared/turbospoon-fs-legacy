@@ -37,12 +37,23 @@ class App {
 		@signer = Signer(@secret_key);
 
 		-- Configuration and data storage
-		@config = {};
+		@config = {
+			static_dir = "static"
+		};
 		@handlers = setmetatable({}, {__index = App.handlers});
 
 		-- Routing information
 		@routes = {};
 		@errorhandlers = {};
+
+		-- Add static route
+		@route("/static/(.+)", \request, file-> {
+			-- TODO: handle not found
+			file = File(("./%s/%s"):format(@config.static_dir, file));
+			content = file:read("a");
+			file:close();
+			return content;
+		});
 	}
 
 	--- Call a handler for a key and set an appropriate config value.
@@ -86,6 +97,7 @@ class App {
 	--- Do something?
 	handle_error(server, context, operation, errstr, errno)=> {
 		print("Error: ", server, context, operation, errstr);
+		print(debug.traceback());
 		server:shutdown();
 	}
 
@@ -97,6 +109,12 @@ class App {
 	route(path, handler)=>
 		table.insert(@routes, {path=path, handler=handler});
 
+	--- Default headers, to be set automatically when finishing a request.
+	default_headers = {
+		["content-type"] = "text/plain",
+		[":status"] = "200"
+	};
+
 	--- Find the correct page handler for a URL and process the request.
 	-- @param [cqueues.socket] stream Incoming connection to handle
 	-- @private
@@ -107,13 +125,16 @@ class App {
 			if path:match(route.path) {
 				local results = {route.handler(Request(
 						stream, request_headers), path:match(route.path))};
-				if (! results[2]) results[2] = '200';
-				else results[2] = tostring(results[2]);
 				local response_headers = headers.new();
-				if results[3]
+				for (k, v in pairs(@default_headers)) {
+					print(k, v);
+					response_headers:upsert(k, v);}
+				if results[3] {
 					for (k, v in pairs(results[3]))
 						response_headers:upsert(k, v);
-				response_headers:upsert(":status", results[2]);
+				}
+				if results[2]
+					response_headers:upsert(":status", tostring(results[2]));
 				if (== request_headers:get(":method") "HEAD") {
 					stream:write_headers(response_headers, true);
 					return;
@@ -127,7 +148,7 @@ class App {
 		}
 	}
 
-	--- Start listening to incoming requests
+	--- Start listening to incoming requests.
 	run()=> {
 		print(@server:loop());
 	}
