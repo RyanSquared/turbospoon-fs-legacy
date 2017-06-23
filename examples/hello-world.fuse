@@ -1,0 +1,12 @@
+local tbsp = require("turbospoon");
+local app = tbsp.App();
+
+app:route("/hello/(%S+)", \page=> {
+	local headers = {['content-type'] = 'text/plain'}; -- TODO automate
+	return ("Hello world, you loaded %s!\n"):format(page), 200, headers;
+});
+
+app:set('certfile', 'ssl/cert.pem');
+app:set('keyfile', 'ssl/key.pem');
+app:bind('::', '4443');
+app:run();
