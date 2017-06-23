@@ -6,8 +6,8 @@ local app = tbsp.App();
 
 class RandomError implements BaseError {
 	__init(request)=> @request = request;
-	__tostring()=> 
-		return ("This error really isn't random, actually!");
+	__tostring()=>
+		return "This error really isn't random, actually!";
 }
 
 app:error_handler(RandomError, \err=> {
@@ -19,5 +19,5 @@ app:route("/give_error", \request-> {
 });
 
 app:set('tls', false);
-app:bind('::', '8000');
+app:bind('::', 8000);
 app:run();
