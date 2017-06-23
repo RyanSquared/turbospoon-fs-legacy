@@ -21,4 +21,22 @@ class SignerVerificationError implements BaseError {
 	}
 }
 
+--- Thrown if a route was not found that satisfies the request
+-- @param [string] route Requested route
+class RouteDoesNotResolveError implements BaseError {
+	__init(route, request)=>
+		@route, @request = route, request;
+	__tostring()=>
+		return ("%q: No route found to resolve to path"):format(@route);
+}
+
+--- Thrown if a file was not found in the static dir that satisfies the request
+-- @param [string] file Requested file
+class StaticFileNotFoundError implements BaseError {
+	__init(file, request)=>
+		@file, @request = file, request;
+	__tostring()=>
+		return ("%q: File not found in static files"):format(@file);
+}
+
 return _ENV;
