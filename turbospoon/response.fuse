@@ -1,0 +1,22 @@
+--- Module for Turbospoon MIME type "easiness" functions
+-- @module turbospoon.response
+
+_ENV = setmetatable({}, {__index = _G});
+
+local make_filetype_for(mime_type)-> {
+	return {["content-type"] = mime_type};
+}
+
+html_response(content, status)-> {
+	return content, status, make_filetype_for("text/html");
+}
+
+json_response(content, status)-> {
+	return content, status, make_filetype_for("application/json");
+}
+
+csv_response(content, status)-> {
+	return content, status, make_filetype_for("text/csv");
+}
+
+return _ENV;
