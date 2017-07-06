@@ -5,8 +5,6 @@ local {to_base64, from_base64} = require("basexx");
 local digest = require("openssl.digest");
 local hmac = require("openssl.hmac");
 
-_ENV = setmetatable({}, {__index = _G});
-
 --- Class used for signing and validating strings using an immutable key
 -- @param [string] signing_key Key used for HMAC signing hashes
 -- @param [table] opts
@@ -15,9 +13,8 @@ _ENV = setmetatable({}, {__index = _G});
 class Signer {
 	__init(signing_key, opts={})=> {
 		@signing_key   = assert(signing_key);
-		-- @salt          = (|| opts.salt ""); -- ::TODO:: eventually?
-		@separator     = (|| opts.salt "!");
-		@digest_method = (|| opts.digest_method "sha1");
+		@separator     = (|| opts.separator "!");
+		@digest_method = (|| opts.digest_method "sha512");
 	}
 
 	--- Hash a value using @digest_method, then use HMAC with @signing_key
@@ -39,5 +36,3 @@ class Signer {
 		return text;
 	}
 }
-
-return _ENV;

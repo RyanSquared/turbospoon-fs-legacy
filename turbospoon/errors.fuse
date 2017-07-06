@@ -2,8 +2,6 @@
 -- @module turbospoon.errors
 local {BaseError} = require("stdlib.error");
 
-_ENV = setmetatable({}, {__index = _G});
-
 --- Thrown if a hashed string does not match a pre-hashed string
 -- @param [string] signed_text Text to use for checking validation
 -- @param [string] text Text that, when hashed, failed validation
@@ -38,5 +36,3 @@ class StaticFileNotFoundError implements BaseError {
 	__tostring()=>
 		return ("%q: File not found in static files"):format(@file);
 }
-
-return _ENV;

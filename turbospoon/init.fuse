@@ -16,8 +16,6 @@ local {SignerVerificationError,
 		StaticFileNotFoundError} = require("turbospoon.errors");
 local {html_response} = require("turbospoon.response");
 
-_ENV = setmetatable({}, {__index = _G});
-
 --- Provide an interface to transfer data to and from a client.
 -- @param [http.stream] stream Data stream from lua-http, to be wrapped
 class Request {
@@ -243,5 +241,3 @@ App:error_handler(StaticFileNotFoundError, \err=> {
 	local text = "<h1>%s</h1>";
 	return html_response(text:format(tostring(err)), 404);
 });
-
-return _ENV;
